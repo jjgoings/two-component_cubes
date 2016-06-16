@@ -3,6 +3,7 @@ with a particular emphasisis on extracting complex and two-component molecular
 orbitals.
 
 Example:
+
 Say you have a complex 2c MO cube called `twoc.cube`.
 If you have `cube.py` in the same directory, you could write a script like
 ```python
@@ -13,6 +14,14 @@ twoc.write_out('twoc_ia.cube',data='IA')
 twoc.write_out('twoc_rb.cube',data='RB')
 twoc.write_out('twoc_ib.cube',data='IB')
 ```
+
+Or, if you just cloned the whole directory you can run `cube.py` as-is
+
+```
+$ python cube.py
+```
+(You can modify the behavior of cube.py underneath the `__name__ ==
+__main__():`)
 
 This would create an object called `twoc`, which you could then dump out new
 cube files that are readable by GaussView corresponding to the real alpha
