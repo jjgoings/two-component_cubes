@@ -20,8 +20,8 @@ Or, if you just cloned the whole directory you can run `cube.py` as-is
 ```
 $ python cube.py
 ```
-(You can modify the behavior of cube.py underneath the `__name__ ==
-__main__():`)
+(You can modify the behavior of cube.py underneath the `if__name__ ==
+'__main__()':`)
 
 This would create an object called `twoc`, which you could then dump out new
 cube files that are readable by GaussView corresponding to the real alpha
