@@ -50,6 +50,7 @@ class Cube:
                    self.volRA[idx/(self.ny*self.nz),
                            (idx/self.nz)%self.ny,
                             idx%self.nz] = float(v)
+               self.volNorm = np.sqrt(self.volRA**2)
            elif len(vals) == 2*self.nx*self.ny*self.nz:
                # This is the complex one component case
                self.volRA = np.zeros((self.nx,self.ny,self.nz))
@@ -64,6 +65,8 @@ class Cube:
                        self.volIA[i/(self.ny*self.nz),
                                  (i/self.nz)%self.ny,
                                   i%self.nz] = float(v)
+               self.volNorm = np.sqrt(self.volRA**2 +
+                                      self.volIA**2 )
            elif len(vals) == 4*self.nx*self.ny*self.nz:
                # This is the complex 2-component case, so we have to split the
                # volumetric data into four parts. The density is stored real
@@ -90,6 +93,11 @@ class Cube:
                        self.volIB[i/(self.ny*self.nz),
                                  (i/self.nz)%self.ny,
                                   i%self.nz] = float(v)
+               self.volNorm = np.sqrt(self.volRA**2 +
+                                      self.volRB**2 +
+                                      self.volIA**2 +
+                                      self.volIB**2) 
+       
            else:
                raise NameError, "cube file not valid"
 
@@ -108,7 +116,35 @@ class Cube:
             volume = self.volRB
         elif data == 'IB':
             volume = self.volIB
+        elif data == 'NORM':
+            volume = self.volNorm 
+        elif data == 'MagA':
+            volume = np.sqrt(self.volRA**2 + self.volIA**2)
+        elif data == 'ArgA':
+            volume = (np.arctan2(self.volRA,self.volIA))
+        elif data == 'MagB':
+            volume = np.sqrt(self.volRB**2 + self.volIB**2)
+        elif data == 'ArgB':
+            volume = (np.arctan2(self.volRB,self.volIB))
+        elif data == 'MagABr':
+            volume = np.sqrt(self.volRA**2 + self.volRB**2)
+        elif data == 'ArgABr':
+            volume = (np.arctan2(self.volRA,self.volRB))
+        elif data == 'ESP':
+            volume = np.gradient(self.volRA,edge_order=2)
+            volumeX = volume[0]
+            volumeY = volume[1]
+            volumeZ = volume[2]
+            from matplotlib.cm import get_cmap
+            import mayavi.mlab as mlab
+            #vol = mlab.flow(volumeX,volumeY,volumeZ,seed_resolution=25,seed_visible=False,seedtype='plane',seed_scale=1.8,colormap='bone',integration_direction='both',line_width=1.0,vmin=0,vmax=1.0)
+            mlab.quiver3d(volumeX,volumeY,volumeZ)
+            # Change the color transfer function
+            mlab.show()
+ 
+    
 
+        '''
         with open(filename, 'w') as f:
             for i in self.comment:
                 print(str(i),file=f)
@@ -132,12 +168,10 @@ class Cube:
                         if (iz % 6 == 5):
                             print('',file=f)
                     print('',file=f)
+        '''
        
 
 if __name__ == '__main__':
-    atom = Cube('twoc.cube')
-    atom.write_out('twoc_ra.cube',data='RA')
-    atom.write_out('twoc_ia.cube',data='IA')
-    atom.write_out('twoc_rb.cube',data='RB')
-    atom.write_out('twoc_ib.cube',data='IB')
+    atom = Cube('esp.cube')
+    atom.write_out('field.cube',data='ESP')
     
