@@ -1,8 +1,15 @@
 from __future__ import print_function
 import numpy as np
+import sys
 
 class Cube:
-    def __init__(self, filename):
+    ''' Class to read in a cube file, and split up real/imag and alpha/beta
+        components. It can plot some less common properties, like GHF 
+        magnetization or electrostatic potential gradients, as well as write the
+        cubes out to file for use in GaussView or other cube-viewing programs, 
+        such as PyMol
+    '''
+    def __init__(self, filename,vspin=False):
         self.comment = []
         self.sign    = None # sign on number atoms determines if we are dealing
                             # with total density or a molecular orbital.
@@ -15,6 +22,8 @@ class Cube:
         self.y       = None 
         self.z       = None 
         self.atoms   = []
+        # GHF only; do cubegen with vspin to extract magnetization
+        self.vspin   = vspin
         with open(filename,'r') as f:
            # Save comments (first two lines)
            for i in xrange(2):
@@ -44,7 +53,33 @@ class Cube:
            vals = [float(v) for s in f for v in s.split()]
            # now we need to see what kind of data we have
            # (real/complex?,two-component)
-           if len(vals) == self.nx*self.ny*self.nz:
+
+           if(self.vspin):
+               if len(vals) == 4*self.nx*self.ny*self.nz:
+                   self.N = np.zeros((self.nx,self.ny,self.nz))
+                   self.Mx = np.zeros((self.nx,self.ny,self.nz))
+                   self.My = np.zeros((self.nx,self.ny,self.nz))
+                   self.Mz = np.zeros((self.nx,self.ny,self.nz))
+                   for idx,v in enumerate(vals):
+                       i = int(np.floor(idx/4))
+                       if idx % 4 == 0:
+                           self.N[i/(self.ny*self.nz),
+                                     (i/self.nz)%self.ny,
+                                      i%self.nz] = float(v)
+                       elif idx % 4 == 1:
+                           self.Mx[i/(self.ny*self.nz),
+                                     (i/self.nz)%self.ny,
+                                      i%self.nz] = float(v)
+                       elif idx % 4 == 2:
+                           self.My[i/(self.ny*self.nz),
+                                     (i/self.nz)%self.ny,
+                                      i%self.nz] = float(v)
+                       elif idx % 4 == 3:
+                           self.Mz[i/(self.ny*self.nz),
+                                     (i/self.nz)%self.ny,
+                                      i%self.nz] = float(v)
+               
+           elif len(vals) == self.nx*self.ny*self.nz:
                self.volRA = np.zeros((self.nx,self.ny,self.nz))
                for idx,v in enumerate(vals):
                    self.volRA[idx/(self.ny*self.nz),
@@ -101,13 +136,60 @@ class Cube:
            else:
                raise NameError, "cube file not valid"
 
+    def plot_property(self,prop=None):
+        ''' This function will plot vector fields for you to enjoy. Right now,
+            if you feed it an electrostatic potential (ESP), it will compute and
+            plot the gradient. If you have a noncollinear solution and run VSPIN
+            with cubegen, it will plot the magnetization (MAG)
+            You need Mayavi to plot in 3D.
+        '''
+        try:
+            import mayavi.mlab as mlab 
+        except ImportError:
+            print("[ImportError] You need Mayavi \n \
+                   (http://docs.enthought.com/mayavi/mayavi/)") 
+        if not prop:
+            sys.exit('No property chosen!')
+        if prop == 'ESP':
+            volume = np.gradient(self.volRA,edge_order=2)
+            volumeX = volume[0]
+            volumeY = volume[1]
+            volumeZ = volume[2]
+            import mayavi.mlab as mlab
+            vol = mlab.flow(volumeX,volumeY,volumeZ,\
+                seed_resolution=25,\
+                seed_visible=True,\
+                seedtype='plane',\
+                seed_scale=2,\
+                colormap='bone',\
+                integration_direction='both',\
+                line_width=1.0)
+            #mlab.quiver3d(volumeX,volumeY,volumeZ)
+            mlab.show()
+        elif (self.vspin) and (prop == 'MAG'):
+            import mayavi.mlab as mlab
+            import matplotlib.pyplot as plt 
+            plt.quiver(self.Mx[:,self.ny/2,:],self.Mz[:,self.ny/2,:],scale=10.0)
+            plt.show()
+            vol = mlab.flow(self.Mx,self.My,self.Mz,\
+                seed_resolution=25,\
+                seed_visible=True,\
+                seedtype='plane',\
+                seed_scale=2,\
+                colormap='bone',\
+                integration_direction='both',\
+                line_width=1.0)
+            #mlab.quiver3d(self.Mx,self.My,self.Mz,mask_points=50)
+            #mlab.show()
+
     def write_out(self,filename,data='RA'):
-        # Generate new cube file
-        # String variable 'data' specifies which component you want
-        #  RA = real alpha
-        #  IA = imag alpha
-        #  RB = real beta 
-        #  IB = imag beta
+        '''Generate new cube file
+           String variable 'data' specifies which component you want
+           RA = real alpha
+           IA = imag alpha
+           RB = real beta 
+           IB = imag beta
+        '''
         if data == 'RA':
             volume = self.volRA
         elif data == 'IA':
@@ -118,6 +200,9 @@ class Cube:
             volume = self.volIB
         elif data == 'NORM':
             volume = self.volNorm 
+        # Below are some options to print the Magnitude (Mag) and Argument (Arg)
+        # of complex cubes, e.g. if z = a + i*b -> |z|*exp(i*theta) where |z| is 
+        # the Magnitude (Mag) and theta is the Argument (Arg)
         elif data == 'MagA':
             volume = np.sqrt(self.volRA**2 + self.volIA**2)
         elif data == 'ArgA':
@@ -126,25 +211,28 @@ class Cube:
             volume = np.sqrt(self.volRB**2 + self.volIB**2)
         elif data == 'ArgB':
             volume = (np.arctan2(self.volRB,self.volIB))
+        # this the magnitude and angle between alpha and beta components for GHF
         elif data == 'MagABr':
             volume = np.sqrt(self.volRA**2 + self.volRB**2)
         elif data == 'ArgABr':
             volume = (np.arctan2(self.volRA,self.volRB))
-        elif data == 'ESP':
-            volume = np.gradient(self.volRA,edge_order=2)
-            volumeX = volume[0]
-            volumeY = volume[1]
-            volumeZ = volume[2]
-            from matplotlib.cm import get_cmap
-            import mayavi.mlab as mlab
-            #vol = mlab.flow(volumeX,volumeY,volumeZ,seed_resolution=25,seed_visible=False,seedtype='plane',seed_scale=1.8,colormap='bone',integration_direction='both',line_width=1.0,vmin=0,vmax=1.0)
-            mlab.quiver3d(volumeX,volumeY,volumeZ)
-            # Change the color transfer function
-            mlab.show()
- 
-    
+        # if GHF and VSPIN, you can write out Magnetization densities a la eq 18 
+        # of Bulik, et al, PHYSICAL REVIEW B 87, 035117 (2013)
+        # self.N  = P_{aa} + P_{bb}
+        # self.Mx = 2*Re(P_{ab})
+        # self.My = 2*Im(P_{ab})
+        # self.Mz = P_{aa} - P_{bb}
+         
+        if self.vspin:
+            if data == 'N':
+                volume = self.N
+            elif data == 'Mx':
+                volume = self.Mx
+            elif data == 'My':
+                volume = self.My
+            elif data == 'Mz':
+                volume = self.Mz
 
-        '''
         with open(filename, 'w') as f:
             for i in self.comment:
                 print(str(i),file=f)
@@ -168,10 +256,14 @@ class Cube:
                         if (iz % 6 == 5):
                             print('',file=f)
                     print('',file=f)
-        '''
        
 
 if __name__ == '__main__':
-    atom = Cube('esp.cube')
-    atom.write_out('field.cube',data='ESP')
+    # GHF cubegen w/ VSPIN example to plot and dump magnetization densities
+    magnetization = Cube('ghf-vspin-example.cube',vspin=True)
+    magnetization.plot_property('MAG')
+    magnetization.write_out('Mz.cube',data='Mz')
+    # electrostatic potential example
+    ESP = Cube('esp-example.cube')
+    ESP.plot_property('ESP')
     
