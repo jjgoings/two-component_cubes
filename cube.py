@@ -259,6 +259,14 @@ class Cube:
        
 
 if __name__ == '__main__':
+    # Basic usage example: dump complex GHF MO data to separate real and 
+    # imaginary, alpha and beta, cubes for visualizing each separately.
+    atom = Cube('twoc.cube')
+    atom.write_out('twoc_ra.cube',data='RA')
+    atom.write_out('twoc_ia.cube',data='IA')
+    atom.write_out('twoc_rb.cube',data='RB')
+    atom.write_out('twoc_ib.cube',data='IB')
+    
     # GHF cubegen w/ VSPIN example to plot and dump magnetization densities
     magnetization = Cube('ghf-vspin-example.cube',vspin=True)
     magnetization.plot_property('MAG')
